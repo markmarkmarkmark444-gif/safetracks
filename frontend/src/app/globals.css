@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --foreground-rgb: 15, 23, 42;
+  --background-rgb: 248, 250, 252;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+@layer components {
+  .btn-primary {
+    @apply w-full py-4 px-6 rounded-2xl font-semibold text-white text-lg
+           bg-brand-600 hover:bg-brand-700 active:bg-brand-800
+           transition-all duration-200 shadow-lg hover:shadow-xl
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply w-full py-4 px-6 rounded-2xl font-semibold text-brand-700 text-lg
+           bg-brand-50 hover:bg-brand-100 border-2 border-brand-200
+           transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white rounded-3xl shadow-sm border border-slate-100 p-6;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium;
+  }
+
+  .screen {
+    @apply min-h-screen flex flex-col items-center justify-start
+           bg-gradient-to-b from-brand-50 to-slate-50 px-4 py-8;
+  }
+
+  .container-sm {
+    @apply w-full max-w-sm mx-auto;
+  }
+}
