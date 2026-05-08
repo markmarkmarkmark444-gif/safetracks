@@ -9,15 +9,15 @@ const prisma = new PrismaClient();
 // ─── Generate Report ──────────────────────────────────────────────────────────
 
 reportsRouter.post('/:jobId/generate', authenticate, requireJobAccess, requirePermission('report:generate'), async (req, res) => {
-  const { reportId, pdfBuffer, bethelnetCid, hederaTxId, sha256Hash } =
+  const { reportId, ipfsCid, hederaTxId, sha256Hash } =
     await generateInsuranceReport(req.params['jobId']!, req.auth!.partyId);
 
   res.status(201).json({
     reportId,
-    bethelnetCid,
+    ipfsCid,
     hederaTxId,
     sha256Hash,
-    message: 'Report generated and anchored on blockchain.',
+    message: 'Report generated and anchored on Hedera.',
   });
 });
 

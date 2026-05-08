@@ -81,9 +81,9 @@ uploadsRouter.post(
         type: result.document.type,
         filename: result.document.filename,
         sizeBytes: Number(result.document.sizeBytes),
-        bethelnetCid: result.bethelnetCid,
+        ipfsCid: result.ipfsCid,
         hederaTxId: result.hederaTxId,
-        zkProof: result.zkProof,
+        retrievalUrl: result.retrievalUrl,
         createdAt: result.document.createdAt,
       },
     });

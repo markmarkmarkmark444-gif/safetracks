@@ -11,8 +11,8 @@ import {
   createJobTopic,
   submitJobMessage,
   makeJobCreatedMessage,
+  makeStatusChangedMessage,
 } from '@safetracks/blockchain';
-import { generateJobCommitment } from '@safetracks/blockchain';
 import { issueToken } from '../middleware/auth';
 
 const prisma = new PrismaClient();
@@ -23,28 +23,15 @@ export async function createJob(req: CreateJobRequest): Promise<CreateJobRespons
   const jobId = generateId();
   const jobNumber = generateJobNumber(req.type);
 
-  // 1. Create Hedera HCS topic for this job
+  // 1. Create Hedera HCS topic — one per job, immutable audit trail
   const hederaTopicId = await createJobTopic(jobId);
 
-  // 2. Generate Aleo commitment for privacy-preserving insurance data
-  const nonce = generateId().replace(/-/g, '');
-  const aleoResult = await generateJobCommitment(
-    jobId,
-    req.claimNumber ?? 'PENDING',
-    req.policyNumber ?? 'PENDING',
-    req.initialParties?.find(p => p.role === 'homeowner')?.name ?? 'PENDING',
-    nonce,
-  ).catch(() => null); // Non-fatal — commitment added later if Aleo is unavailable
-
-  const aleoCommitment = aleoResult?.commitment ?? '';
-  const aleoJobId = aleoResult?.proof.executionId ?? '';
-
-  // 3. Generate QR code payload and image
+  // 2. Generate QR code
   const qrPayload = encodeQRPayload(jobId, hederaTopicId);
   const qrUrl = `${WEB_BASE_URL}/scan/${jobId}?t=${qrPayload.checksum}`;
   const qrSvg = await QRCode.toString(qrUrl, { type: 'svg', width: 300, margin: 2 });
 
-  // 4. Persist job to database
+  // 3. Persist job
   const job = await prisma.restorationJob.create({
     data: {
       id: jobId,
@@ -70,27 +57,22 @@ export async function createJob(req: CreateJobRequest): Promise<CreateJobRespons
       deductible: req.deductible,
       estimatedLoss: req.estimatedLoss,
       hederaTopicId,
-      aleoCommitment: aleoCommitment || undefined,
-      aleoJobId: aleoJobId || undefined,
       qrCodeUrl: qrUrl,
       qrCodeData: JSON.stringify(qrPayload),
       parties: req.initialParties ? {
-        create: req.initialParties.map(p => ({
-          id: generateId(),
-          ...p,
-        })),
+        create: req.initialParties.map(p => ({ id: generateId(), ...p })),
       } : undefined,
     },
     include: { parties: true },
   });
 
-  // 5. Submit job creation event to Hedera HCS
+  // 4. Anchor job creation on Hedera HCS
   await submitJobMessage(
     hederaTopicId,
-    makeJobCreatedMessage(jobId, jobNumber, aleoCommitment),
+    makeJobCreatedMessage(jobId, jobNumber, ''),
   ).catch(err => {
-    // Log but don't fail — the job is created; HCS message can be retried
-    console.error('Failed to submit job creation HCS message:', err);
+    // Non-fatal — job exists in DB; HCS message can be retried
+    console.error('HCS job creation message failed:', err.message);
   });
 
   return {
@@ -122,8 +104,6 @@ export async function createJob(req: CreateJobRequest): Promise<CreateJobRespons
       deductible: job.deductible ?? undefined,
       estimatedLoss: job.estimatedLoss ?? undefined,
       hederaTopicId: job.hederaTopicId,
-      aleoCommitment: job.aleoCommitment ?? undefined,
-      aleoJobId: job.aleoJobId ?? undefined,
       qrCodeUrl: job.qrCodeUrl,
       qrCodeData: job.qrCodeData,
       parties: job.parties.map(p => ({
@@ -135,8 +115,6 @@ export async function createJob(req: CreateJobRequest): Promise<CreateJobRespons
         phone: p.phone ?? undefined,
         company: p.company ?? undefined,
         licenseNumber: p.licenseNumber ?? undefined,
-        walletAddress: p.walletAddress ?? undefined,
-        aleoAddress: p.aleoAddress ?? undefined,
         inviteToken: p.inviteToken ?? undefined,
         acceptedAt: p.acceptedAt?.toISOString(),
         createdAt: p.createdAt.toISOString(),
@@ -144,7 +122,7 @@ export async function createJob(req: CreateJobRequest): Promise<CreateJobRespons
     },
     qrCodeSvg: qrSvg,
     hederaTopicId,
-    aleoCommitment,
+    aleoCommitment: '',
   };
 }
 
@@ -200,8 +178,6 @@ export async function updateJobStatus(jobId: string, newStatus: string, actorPar
     data: { status: newStatus as any },
   });
 
-  // Anchor status change on Hedera
-  const { makeStatusChangedMessage } = await import('@safetracks/blockchain');
   await submitJobMessage(
     job.hederaTopicId,
     makeStatusChangedMessage(jobId, job.status, newStatus, actorPartyId),
@@ -219,12 +195,7 @@ export async function scanQR(jobId: string, partyEmail: string) {
     throw Object.assign(new Error('Party not found for this job'), { statusCode: 403 });
   }
 
-  const token = issueToken({
-    partyId: party.id,
-    jobId,
-    role: party.role as any,
-  });
-
+  const token = issueToken({ partyId: party.id, jobId, role: party.role as any });
   const { ROLE_PERMISSIONS } = await import('@safetracks/shared');
 
   return {

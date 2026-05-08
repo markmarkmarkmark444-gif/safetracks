@@ -1,1 +1,1 @@
-export * from './bethelnet/client';
+export * from './pinata/client';

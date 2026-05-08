@@ -1,21 +1,12 @@
 import { PrismaClient } from '@prisma/client';
-import {
-  DocumentType,
-  shouldUseBethelnet,
-  sha256Hex,
-  generateId,
-} from '@safetracks/shared';
-import { getBethelnetClient } from '@safetracks/storage';
-import {
-  submitJobMessage,
-  makeDocumentUploadedMessage,
-} from '@safetracks/blockchain';
-import { generateDocumentProof } from '@safetracks/blockchain';
+import { DocumentType, sha256Hex, generateId } from '@safetracks/shared';
+import { getStorageClient } from '@safetracks/storage';
+import { submitJobMessage, makeDocumentUploadedMessage } from '@safetracks/blockchain';
 import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
-const SMALL_FILE_THRESHOLD = 512 * 1024; // 512 KB
+const SMALL_FILE_THRESHOLD = 512 * 1024; // 512 KB — below this, skip remote storage
 
 export interface ProcessUploadOptions {
   jobId: string;
@@ -40,56 +31,32 @@ export async function processUpload(opts: ProcessUploadOptions) {
   const sha256Hash = sha256Hex(fileBuffer);
   const sizeBytes = fileBuffer.length;
 
-  let bethelnetCid: string;
-  let bethelnetZkProof: string;
-  let bethelnetChunkCount: number;
-  let bethelnetStorageNodeIds: string[];
+  let ipfsCid: string;
+  let storageProvider: string;
 
-  if (shouldUseBethelnet(sizeBytes)) {
-    // Route to Bethelnet for large files
-    logger.info(`Routing ${filename} (${sizeBytes} bytes) to Bethelnet`);
-
-    const bethelnet = getBethelnetClient();
-    const result = await bethelnet.uploadBuffer(fileBuffer, {
+  if (sizeBytes >= SMALL_FILE_THRESHOLD) {
+    logger.info(`Uploading ${filename} (${(sizeBytes / 1024).toFixed(0)} KB) to Pinata IPFS`);
+    const storage = getStorageClient();
+    const result = await storage.uploadBuffer(fileBuffer, {
       filename,
       mimeType,
       tags: [jobId, type, ...tags],
       metadata: { jobId, partyId, type, docId },
     });
-
-    bethelnetCid = result.cid;
-    bethelnetZkProof = result.zkProof;
-    bethelnetChunkCount = result.chunkCount;
-    bethelnetStorageNodeIds = result.storageNodeIds;
+    ipfsCid = result.cid;
+    storageProvider = 'pinata';
   } else {
-    // Small file: store inline hash; CID is sha256 (content-addressed)
-    bethelnetCid = `local:${sha256Hash}`;
-    bethelnetZkProof = '';
-    bethelnetChunkCount = 1;
-    bethelnetStorageNodeIds = ['local'];
+    // Small file — content-addressed by SHA-256, no remote storage needed
+    ipfsCid = `local:${sha256Hash}`;
+    storageProvider = 'local';
   }
 
-  // Generate Aleo ZK proof of document integrity
-  const party = await prisma.jobParty.findUnique({
-    where: { id: partyId },
-    select: { aleoAddress: true },
-  });
-
-  const aleoProof = await generateDocumentProof(
-    jobId,
-    docId,
-    sha256Hash,
-    bethelnetCid,
-    party?.aleoAddress ?? 'aleo1unknown',
-  ).catch(() => null);
-
-  // Submit to Hedera HCS
+  // Anchor to Hedera HCS — immutable timestamped record
   const hcsResult = await submitJobMessage(
     job.hederaTopicId,
-    makeDocumentUploadedMessage(jobId, docId, type, bethelnetCid, sha256Hash, partyId),
+    makeDocumentUploadedMessage(jobId, docId, type, ipfsCid, sha256Hash, partyId),
   );
 
-  // Persist document record
   const doc = await prisma.jobDocument.create({
     data: {
       id: docId,
@@ -100,35 +67,33 @@ export async function processUpload(opts: ProcessUploadOptions) {
       mimeType,
       sizeBytes: BigInt(sizeBytes),
       description,
-      bethelnetCid,
-      bethelnetZkProof,
-      bethelnetChunkCount,
-      bethelnetStorageNodeIds,
+      ipfsCid,
+      storageProvider,
       sha256Hash,
       hederaTxId: hcsResult.transactionId,
       hederaSequenceNumber: hcsResult.sequenceNumber,
-      aleoProofId: aleoProof?.proof.proofId,
       tags,
     },
   });
 
   return {
     document: doc,
-    bethelnetCid,
+    ipfsCid,
     hederaTxId: hcsResult.transactionId,
-    zkProof: aleoProof?.proof.proof ?? bethelnetZkProof,
+    retrievalUrl: storageProvider === 'pinata'
+      ? getStorageClient().getRetrievalUrl(ipfsCid)
+      : null,
   };
 }
 
-export async function getDocumentSignedUrl(docId: string): Promise<string> {
+export async function getDocumentUrl(docId: string): Promise<string> {
   const doc = await prisma.jobDocument.findUniqueOrThrow({ where: { id: docId } });
 
-  if (doc.bethelnetCid.startsWith('local:')) {
-    throw new Error('Document is stored locally — serve directly');
+  if (doc.storageProvider === 'local') {
+    throw new Error('Document stored locally — no remote URL available');
   }
 
-  const bethelnet = getBethelnetClient();
-  return bethelnet.getSignedUrl(doc.bethelnetCid, 3600);
+  return getStorageClient().getRetrievalUrl(doc.ipfsCid);
 }
 
 export async function listDocuments(jobId: string, type?: DocumentType) {

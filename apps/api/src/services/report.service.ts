@@ -9,7 +9,7 @@ import {
   WATER_CLASSES,
   FIRE_SMOKE_CATEGORIES,
 } from '@safetracks/shared';
-import { getBethelnetClient } from '@safetracks/storage';
+import { getStorageClient } from '@safetracks/storage';
 import {
   submitJobMessage,
   makeReportGeneratedMessage,
@@ -24,7 +24,7 @@ export async function generateInsuranceReport(
 ): Promise<{
   reportId: string;
   pdfBuffer: Buffer;
-  bethelnetCid: string;
+  ipfsCid: string;
   hederaTxId: string;
   sha256Hash: string;
 }> {
@@ -45,9 +45,9 @@ export async function generateInsuranceReport(
   const sha256Hash = sha256Hex(pdfBuffer);
   const reportId = generateId();
 
-  // Upload PDF to Bethelnet
-  const bethelnet = getBethelnetClient();
-  const bethelnetResult = await bethelnet.uploadBuffer(pdfBuffer, {
+  // Upload PDF to Pinata IPFS
+  const storage = getStorageClient();
+  const storageResult = await storage.uploadBuffer(pdfBuffer, {
     filename: `report-${job.jobNumber}-v${Date.now()}.pdf`,
     mimeType: 'application/pdf',
     tags: [jobId, 'insurance_report'],
@@ -57,7 +57,7 @@ export async function generateInsuranceReport(
   // Anchor on Hedera
   const hcsResult = await submitJobMessage(
     job.hederaTopicId,
-    makeReportGeneratedMessage(jobId, reportId, sha256Hash, bethelnetResult.cid, generatedByPartyId),
+    makeReportGeneratedMessage(jobId, reportId, sha256Hash, storageResult.cid, generatedByPartyId),
   );
 
   // Persist report metadata
@@ -78,7 +78,7 @@ export async function generateInsuranceReport(
       id: reportId,
       jobId,
       generatedBy: generatedByPartyId,
-      pdfBethelnetCid: bethelnetResult.cid,
+      pdfIpfsCid: storageResult.cid,
       sha256Hash,
       hederaTxId: hcsResult.transactionId,
       summary,
@@ -90,7 +90,7 @@ export async function generateInsuranceReport(
   return {
     reportId,
     pdfBuffer,
-    bethelnetCid: bethelnetResult.cid,
+    ipfsCid: storageResult.cid,
     hederaTxId: hcsResult.transactionId,
     sha256Hash,
   };
@@ -274,7 +274,7 @@ async function buildPdf(job: any): Promise<Buffer> {
         .text(formatDocType(d.type), 50, doc.y);
       doc.fillColor('#2C3E50').font('Helvetica')
         .text(`  ${d.filename} — ${formatBytes(Number(d.sizeBytes))} — ${new Date(d.createdAt).toLocaleDateString()}`, 50, doc.y)
-        .text(`  Bethelnet CID: ${d.bethelnetCid}`, 50, doc.y)
+        .text(`  IPFS CID: ${d.ipfsCid}`, 50, doc.y)
         .text(`  SHA-256: ${d.sha256Hash}`, 50, doc.y)
         .text(`  Hedera TX: ${d.hederaTxId}`, 50, doc.y);
       doc.moveDown(0.3);

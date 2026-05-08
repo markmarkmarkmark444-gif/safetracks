@@ -197,17 +197,14 @@ model JobDocument {
   sizeBytes   BigInt
   description String?
 
-  // Bethelnet decentralized storage
-  bethelnetCid            String
-  bethelnetZkProof        String  @db.Text
-  bethelnetChunkCount     Int
-  bethelnetStorageNodeIds String[]
+  // IPFS storage (Pinata for v1)
+  ipfsCid         String
+  storageProvider String   @default("pinata")  // "pinata" | "local"
 
   // Cryptographic integrity
-  sha256Hash              String
-  hederaTxId              String  @unique
-  hederaSequenceNumber    Int
-  aleoProofId             String?
+  sha256Hash           String
+  hederaTxId           String  @unique
+  hederaSequenceNumber Int
 
   tags      String[]
   createdAt DateTime @default(now())
@@ -218,7 +215,7 @@ model JobDocument {
   @@index([jobId])
   @@index([type])
   @@index([hederaTxId])
-  @@index([bethelnetCid])
+  @@index([ipfsCid])
 }
 
 // ─── Moisture Readings ────────────────────────────────────────────────────────
@@ -369,16 +366,15 @@ model AuditEvent {
 // ─── Insurance Reports ────────────────────────────────────────────────────────
 
 model InsuranceReport {
-  id               String   @id @default(uuid())
-  jobId            String
-  generatedAt      DateTime @default(now())
-  generatedBy      String
-  version          Int      @default(1)
-  pdfBethelnetCid  String?
-  jsonBethelnetCid String?
-  sha256Hash       String
-  hederaTxId       String   @unique
-  summary          Json
+  id          String   @id @default(uuid())
+  jobId       String
+  generatedAt DateTime @default(now())
+  generatedBy String
+  version     Int      @default(1)
+  pdfIpfsCid  String?
+  sha256Hash  String
+  hederaTxId  String   @unique
+  summary     Json
 
   job RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
