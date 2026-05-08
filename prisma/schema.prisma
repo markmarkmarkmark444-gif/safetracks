@@ -1,0 +1,386 @@
+// Verified Restore — Insurance Restoration Platform
+// Prisma Schema — PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum JobType {
+  water
+  fire
+  mold
+  storm
+  multi
+}
+
+enum JobStatus {
+  created
+  active
+  drying
+  remediation
+  reconstruction
+  complete
+  disputed
+  closed
+}
+
+enum PartyRole {
+  mitigation_company
+  homeowner
+  insurance_adjuster
+  vendor
+  subcontractor
+  public_adjuster
+  attorney
+}
+
+enum DocumentType {
+  photo
+  video
+  moisture_log
+  psychrometric_chart
+  equipment_report
+  xactimate_export
+  work_plan_s500
+  work_plan_s700
+  certificate_of_completion
+  scope_of_loss
+  invoice
+  subcontractor_receipt
+  permit
+  other
+}
+
+enum EquipmentType {
+  dehumidifier
+  air_mover
+  air_scrubber
+  hepa_air_scrubber
+  hydroxyl_generator
+  ozone_generator
+  thermal_fogger
+  desiccant_dehumidifier
+  negative_air_machine
+  moisture_meter
+  thermo_hygrometer
+  infrared_camera
+  other
+}
+
+enum WaterCategory {
+  category_1
+  category_2
+  category_3
+}
+
+enum MaterialClass {
+  class_1
+  class_2
+  class_3
+  class_4
+}
+
+enum FireSmokeCategory {
+  wet_smoke
+  dry_smoke
+  protein_smoke
+  fuel_oil_smoke
+  other_smoke
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+model RestorationJob {
+  id         String    @id @default(uuid())
+  jobNumber  String    @unique
+  type       JobType
+  status     JobStatus @default(created)
+  lossDate   DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Location
+  street     String
+  city       String
+  state      String
+  zip        String
+  country    String    @default("US")
+  lat        Float?
+  lng        Float?
+
+  // Classification
+  waterCategory    WaterCategory?
+  waterClass       MaterialClass?
+  fireCategory     FireSmokeCategory?
+  affectedRooms    String[]
+  affectedSqFt     Float
+
+  // Insurance metadata
+  claimNumber      String?
+  policyNumber     String?
+  insuranceCompany String?
+  deductible       Float?
+  estimatedLoss    Float?
+
+  // Blockchain anchors
+  hederaTopicId    String   @unique
+  hederaAccountId  String?
+  aleoCommitment   String?
+  aleoJobId        String?
+
+  // QR code
+  qrCodeUrl        String
+  qrCodeData       String   // JSON payload
+
+  // Relations
+  parties          JobParty[]
+  documents        JobDocument[]
+  moistureReadings MoistureReading[]
+  psychroReadings  PsychrometricReading[]
+  equipment        Equipment[]
+  auditEvents      AuditEvent[]
+  reports          InsuranceReport[]
+  s500WorkPlan     S500WorkPlan?
+  s700WorkPlan     S700WorkPlan?
+
+  @@index([status])
+  @@index([type])
+  @@index([lossDate])
+  @@index([hederaTopicId])
+}
+
+model JobParty {
+  id             String    @id @default(uuid())
+  jobId          String
+  role           PartyRole
+  name           String
+  email          String
+  phone          String?
+  company        String?
+  licenseNumber  String?
+  walletAddress  String?
+  aleoAddress    String?
+  inviteToken    String?   @unique
+  acceptedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  job            RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  // Activity relations
+  uploadedDocs   JobDocument[]
+  moistureReadings MoistureReading[]
+  psychroReadings  PsychrometricReading[]
+  auditEvents    AuditEvent[]
+  placedEquipment Equipment[]
+
+  @@index([jobId])
+  @@index([email])
+  @@index([inviteToken])
+}
+
+// ─── Documents & Storage ─────────────────────────────────────────────────────
+
+model JobDocument {
+  id          String       @id @default(uuid())
+  jobId       String
+  uploadedBy  String
+  type        DocumentType
+  filename    String
+  mimeType    String
+  sizeBytes   BigInt
+  description String?
+
+  // Bethelnet decentralized storage
+  bethelnetCid            String
+  bethelnetZkProof        String  @db.Text
+  bethelnetChunkCount     Int
+  bethelnetStorageNodeIds String[]
+
+  // Cryptographic integrity
+  sha256Hash              String
+  hederaTxId              String  @unique
+  hederaSequenceNumber    Int
+  aleoProofId             String?
+
+  tags      String[]
+  createdAt DateTime @default(now())
+
+  job        RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  uploader   JobParty       @relation(fields: [uploadedBy], references: [id])
+
+  @@index([jobId])
+  @@index([type])
+  @@index([hederaTxId])
+  @@index([bethelnetCid])
+}
+
+// ─── Moisture Readings ────────────────────────────────────────────────────────
+
+model MoistureReading {
+  id          String   @id @default(uuid())
+  jobId       String
+  recordedBy  String
+  timestamp   DateTime
+
+  room        String
+  material    String
+  location    String
+  readingPct  Float
+  readingWme  Float?
+  dryStandard Float
+  equipmentId String?
+  photoId     String?
+  hederaTxId  String?
+
+  job        RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  party      JobParty       @relation(fields: [recordedBy], references: [id])
+
+  @@index([jobId])
+  @@index([timestamp])
+}
+
+// ─── Psychrometric Readings ───────────────────────────────────────────────────
+
+model PsychrometricReading {
+  id                String   @id @default(uuid())
+  jobId             String
+  recordedBy        String
+  timestamp         DateTime
+
+  room              String
+  temperatureF      Float
+  relativeHumidityPct Float
+  dewPointF         Float
+  grainsPerLb       Float
+  specificHumidity  Float?
+  wetBulbF          Float?
+  vaporPressure     Float?
+
+  // S500 drying goal thresholds at time of reading
+  dryingGoalTempF   Float?
+  dryingGoalRhPct   Float?
+
+  hederaTxId        String?
+
+  job   RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  party JobParty       @relation(fields: [recordedBy], references: [id])
+
+  @@index([jobId])
+  @@index([timestamp])
+}
+
+// ─── Equipment Tracking ───────────────────────────────────────────────────────
+
+model Equipment {
+  id             String        @id @default(uuid())
+  jobId          String
+  type           EquipmentType
+  make           String
+  model          String
+  serialNumber   String
+  assetTag       String?
+
+  placedAt       DateTime
+  removedAt      DateTime?
+  placedRoom     String
+  placedBy       String
+
+  dailyRentalRate Float?
+  hoursOnJob      Float?
+  hederaTxId      String?
+
+  job    RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  party  JobParty       @relation(fields: [placedBy], references: [id])
+
+  @@index([jobId])
+  @@index([type])
+}
+
+// ─── IICRC Work Plans ─────────────────────────────────────────────────────────
+
+model S500WorkPlan {
+  id                    String        @id @default(uuid())
+  jobId                 String        @unique
+  version               String        @default("2021")
+  category              WaterCategory
+  classOfWaterDamage    MaterialClass
+  scopeOfWork           String        @db.Text
+  dryingProtocol        Json
+  structuralDryingGoals Json
+  containmentRequired   Boolean       @default(false)
+  antimicrobialApplied  Boolean       @default(false)
+  antimicrobialProduct  String?
+  ppe                   String[]
+  generatedAt           DateTime      @default(now())
+  signedByPartyId       String?
+  hederaTxId            String?
+
+  job RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model S700WorkPlan {
+  id                    String            @id @default(uuid())
+  jobId                 String            @unique
+  version               String            @default("2025")
+  fireCategory          FireSmokeCategory
+  scopeOfWork           String            @db.Text
+  smokeRemovalProtocol  String            @db.Text
+  deodorizationMethod   String
+  contentsCleaning      Boolean           @default(false)
+  packoutRequired       Boolean           @default(false)
+  airQualityTesting     Boolean           @default(true)
+  ppe                   String[]
+  generatedAt           DateTime          @default(now())
+  signedByPartyId       String?
+  hederaTxId            String?
+
+  job RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+// ─── Audit Trail ─────────────────────────────────────────────────────────────
+
+model AuditEvent {
+  id                   String    @id @default(uuid())
+  jobId                String
+  actorPartyId         String
+  actorRole            PartyRole
+  eventType            String
+  description          String
+  metadata             Json
+  hederaTxId           String    @unique
+  hederaSequenceNumber Int
+  timestamp            DateTime  @default(now())
+
+  job   RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  party JobParty       @relation(fields: [actorPartyId], references: [id])
+
+  @@index([jobId])
+  @@index([timestamp])
+  @@index([eventType])
+}
+
+// ─── Insurance Reports ────────────────────────────────────────────────────────
+
+model InsuranceReport {
+  id               String   @id @default(uuid())
+  jobId            String
+  generatedAt      DateTime @default(now())
+  generatedBy      String
+  version          Int      @default(1)
+  pdfBethelnetCid  String?
+  jsonBethelnetCid String?
+  sha256Hash       String
+  hederaTxId       String   @unique
+  summary          Json
+
+  job RestorationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}

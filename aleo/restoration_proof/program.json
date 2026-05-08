@@ -1,0 +1,6 @@
+{
+  "program": "restoration_proof_v1.aleo",
+  "version": "0.0.1",
+  "description": "Verified Restore — Insurance Restoration ZK Program. Proves document integrity and generates privacy-preserving job commitments without revealing homeowner PII.",
+  "license": "MIT"
+}
