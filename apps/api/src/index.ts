@@ -12,6 +12,7 @@ import { equipmentRouter } from './routes/equipment';
 import { reportsRouter } from './routes/reports';
 import { auditRouter } from './routes/audit';
 import { qrRouter } from './routes/qr';
+import { visionRouter } from './routes/vision';
 import { errorHandler } from './middleware/error';
 import { logger } from './utils/logger';
 
@@ -57,6 +58,7 @@ app.use('/api/equipment', equipmentRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/qr', qrRouter);
+app.use('/api/vision', visionRouter);
 
 // ─── Error handler ────────────────────────────────────────────────────────────
 app.use(errorHandler);
