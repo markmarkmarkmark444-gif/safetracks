@@ -90,6 +90,18 @@ CREATE TABLE IF NOT EXISTS billing_events (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Supply requests: operational table — staff act on these in real-time
+-- items_json and services_json stored as readable JSON (not hashed) so staff can fulfill requests
+-- Linked to consent_id only — no PII ever stored here
+CREATE TABLE IF NOT EXISTS supply_requests (
+  id            TEXT PRIMARY KEY,
+  session_id    TEXT NOT NULL REFERENCES sessions(id),
+  consent_id    TEXT NOT NULL REFERENCES consent_events(id),
+  items_json    TEXT NOT NULL,    -- JSON array of kit names requested (e.g. ["NARCAN","WOUND CARE KIT"])
+  services_json TEXT NOT NULL,    -- JSON array of services participant expressed interest in
+  submitted_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Index for efficient billing queries by period
 CREATE INDEX IF NOT EXISTS idx_billing_period ON billing_events(billing_period);
 CREATE INDEX IF NOT EXISTS idx_billing_consent ON billing_events(consent_id);
@@ -97,4 +109,5 @@ CREATE INDEX IF NOT EXISTS idx_consent_session ON consent_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_surveys_consent ON surveys(consent_id);
 CREATE INDEX IF NOT EXISTS idx_rewards_consent ON rewards(consent_id);
 CREATE INDEX IF NOT EXISTS idx_zk_consent ON zk_proofs(consent_id);
+CREATE INDEX IF NOT EXISTS idx_supply_session ON supply_requests(session_id);
 `;

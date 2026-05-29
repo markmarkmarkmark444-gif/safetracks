@@ -32,8 +32,8 @@ export interface Survey {
 export interface SurveyAnswer {
   question_id: string;
   question_text: string;
-  answer_type: 'single_choice' | 'multi_choice' | 'scale' | 'boolean';
-  answer_value: string;        // stored as string regardless of type
+  answer_type: 'single_choice' | 'multi_choice' | 'scale' | 'boolean' | 'text';
+  answer_value: string;        // stored as string regardless of type; multi_choice uses comma-separated values
 }
 
 export interface Reward {
@@ -162,6 +162,29 @@ export interface AnchorResponse {
   hedera_transaction_id: string;
   consensus_timestamp: string;
   anchored_hash: string;
+}
+
+// Supply requests — operational, readable by staff, no PII
+
+export interface SupplyRequest {
+  id: string;
+  session_id: string;
+  consent_id: string;
+  items: string[];     // kit names requested
+  services: string[];  // services participant expressed interest in
+  submitted_at: string;
+}
+
+export interface SubmitSuppliesRequest {
+  session_id: string;
+  consent_id: string;
+  items: string[];
+  services: string[];
+}
+
+export interface SubmitSuppliesResponse {
+  supply_id: string;
+  message: string;
 }
 
 // Internal ZK service types

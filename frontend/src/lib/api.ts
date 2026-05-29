@@ -110,6 +110,26 @@ export async function anchorProof(sessionId: string, zkProofId: string) {
   });
 }
 
+// Supplies (kit and service requests — operational, readable by staff)
+export async function getSupplyOptions() {
+  return apiCall<{
+    items: string[];
+    services: string[];
+  }>('/supplies/options');
+}
+
+export async function submitSupplies(
+  sessionId: string,
+  consentId: string,
+  items: string[],
+  services: string[]
+) {
+  return apiCall<{ supply_id: string; message: string }>('/supplies', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, consent_id: consentId, items, services }),
+  });
+}
+
 // Health
 export async function checkHealth() {
   return apiCall<{

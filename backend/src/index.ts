@@ -9,6 +9,7 @@ import surveyRouter from './routes/survey';
 import rewardRouter from './routes/reward';
 import zkProofRouter from './routes/zkProof';
 import anchorRouter from './routes/anchor';
+import suppliesRouter from './routes/supplies';
 import { isHederaConfigured } from './services/hederaService';
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/survey', surveyRouter);
 app.use('/reward', rewardRouter);
 app.use('/zk-proof', zkProofRouter);
 app.use('/anchor', anchorRouter);
+app.use('/supplies', suppliesRouter);
 
 // Health check (no auth required)
 app.get('/health', (_req, res) => {
