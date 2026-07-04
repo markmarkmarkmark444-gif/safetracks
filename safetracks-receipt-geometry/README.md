@@ -74,9 +74,10 @@ All data in this MVP is mock data generated client-side in `src/utils/geometryMa
 
 The following are represented only as labels or placeholder fields in this MVP and are **not implemented**:
 
-- Aleo proof generation/verification
-- Hedera HCS testnet or mainnet anchoring
-- Supabase or any persistent backend/database
+- **Aleo** proof generation/verification — `aleo_proof_hash` is a synthetic string, not a real proof
+- **Hedera HCS** testnet or mainnet anchoring — `hcs_timestamp_placeholder` is a synthetic string, not a real notarization
+- **Supabase** or any persistent backend/database — all state lives in browser memory and resets on reload
+- **Field intake** from real outreach workers, hazard reports, or municipal systems — every receipt is generated client-side by a mock data generator; there is no ingestion pipeline, form, or API endpoint
 - A real audit receipt schema or API
 - Read-only public demo mode
 - Exportable audit reports
@@ -85,7 +86,7 @@ The following are represented only as labels or placeholder fields in this MVP a
 - Role-based access views
 - Municipal response workflow integration
 
-Do not wire these up without an explicit follow-up request — this MVP is the visual proof-of-concept only.
+None of these are wired up, and none should be without an explicit follow-up request — this MVP is the visual proof-of-concept only, with no live backend, no authentication, and no real public health integrations.
 
 ## 7. Running Locally
 
