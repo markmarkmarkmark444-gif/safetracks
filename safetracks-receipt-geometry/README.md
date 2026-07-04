@@ -6,6 +6,10 @@
 
 SafeTracks Receipt Geometry is a React + TypeScript + React Three Fiber MVP that visualizes public health field activity as a 3D graph of privacy-preserving governance receipts. It renders no names, no GPS points, no case files, and no individual profiles — only the shape and status of system activity.
 
+![SafeTracks Receipt Geometry dashboard showing the 3D receipt graph, governance-layer filters, and the How to Read This Geometry panel](docs/screenshot.png)
+
+A silent walkthrough recording is available at [`docs/demo-walkthrough.webm`](docs/demo-walkthrough.webm), with a narration script in [`docs/demo-script.md`](docs/demo-script.md).
+
 ---
 
 ## 1. What This Is
